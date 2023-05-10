@@ -1,55 +1,162 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/fatih/color"
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	r := gin.Default()
-	r.Any("/", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/echo")
-	})
+var (
+	PORT      *int
+	SERVE_URL string
+)
 
-	r.Any("/echo", handleEcho)
+func init() {
+	// go run . -port 8200
+	// go run . -port=8200
+	PORT = flag.Int("port", 8100, "端口号")
+	flag.Parse()
 
-	r.Run(":8100")
+	SERVE_URL = fmt.Sprintf("http://localhost:%v", *PORT)
 }
 
-func handleEcho(c *gin.Context) {
-	fmt.Printf("echo %#v\n", c.Request)
+func main() {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.Default()
 
-	echoData := make(map[string]string)
-	echoData["url"] = fmt.Sprintf("%s%s", c.Request.Host, c.Request.URL.String())
-	echoData["method"] = c.Request.Method
-	echoData["query"] = c.Request.URL.RawQuery
-	for k, v := range c.Request.Header {
-		echoData[k] = v[0]
+	LogTip()
+
+	// 任意请求
+	r.Any("/*action", handleEcho)
+
+	s := &http.Server{
+		Addr:           fmt.Sprintf(":%v", *PORT),
+		Handler:        r,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
-	echoData["remoteAddr"] = c.Request.RemoteAddr
-	echoData["proto"] = c.Request.Proto
-	fmt.Printf("PostForm: %#v\n", c.Request.PostForm)
+	s.ListenAndServe()
+}
 
+// 打印提示
+func LogTip() {
+	fmt.Println()
+	color.New(color.FgGreen, color.Bold, color.Underline).Print(SERVE_URL)
+	fmt.Print(" 服务启动成功")
+	fmt.Printf("\n\n")
+}
+
+// 回声数据
+type EchoData struct {
+	Url           string            `json:"url"`
+	Method        string            `json:"method"`
+	Header        map[string]string `json:"header"`
+	Body          *string           `json:"body,omitempty"`
+	Query         map[string]string `json:"query,omitempty"`
+	FormDataValue map[string]string `json:"formData.values,omitempty"`
+	FormDataFile  []FormFileData    `json:"formData.files,omitempty"`
+	MetaData      map[string]string `json:"metaData"`
+	Explain       []string          `json:"explain"`
+}
+
+// 文件类型的数据
+type FormFileData struct {
+	FormDataField string `json:"formField"`
+	FileName      string `json:"fileName"`
+	MiniType      string `json:"miniType"`
+	Size          int64  `json:"size"`
+}
+
+// 处理 echo
+func handleEcho(c *gin.Context) {
+
+	echoData := EchoData{
+		Url:    fmt.Sprintf("%s%s", c.Request.Host, c.Request.URL.String()),
+		Method: c.Request.Method,
+		Body:   nil,
+		MetaData: map[string]string{
+			"remoteAddr": c.Request.RemoteAddr,
+			"proto":      c.Request.Proto,
+		},
+		Explain: []string{
+			"以下是上面的参数说明: ",
+			"url: 表示请求地址",
+			"method: 表示请求方法",
+			"header: 表示请求头",
+			"body: 表示请求体数据",
+			"query: 表示地址 ? 之后的查询参数",
+			"formData.values: 表示 formData 里面的普通数据",
+			"formData.files: 表示 formData 里面上传的文件数据",
+			"metaData: 表示一些请求的元数据",
+		},
+	}
+
+	// 请求头
+	header := make(map[string]string)
+	for k, v := range c.Request.Header {
+		header[k] = v[0]
+	}
+	echoData.Header = header
+
+	// fmt.Printf("PostForm: %#v\n", c.Request.PostForm)
+
+	// query 数据
+	rawQuery := c.Request.URL.RawQuery
+	if len(rawQuery) > 0 {
+		query := make(map[string]string)
+		for _, q := range strings.Split(rawQuery, "&") {
+			items := strings.Split(q, "=")
+			query[items[0]] = items[1]
+		}
+		echoData.Query = query
+	}
+
+	// formData 数据
 	files, err := c.MultipartForm()
 	if err == nil {
-		for k, v := range files.Value {
-			echoData["formData."+k] = strings.Join(v, "")
+
+		// formData 里的键值对数据
+		formDataValue := make(map[string]string)
+		for key, value := range files.Value {
+			formDataValue[key] = strings.Join(value, ",")
 		}
+		echoData.FormDataValue = formDataValue
+
+		// formData 里的文件数据
+		formDataFile := []FormFileData{}
+		for key, value := range files.File {
+			// 循环获取文件
+			for _, file := range value {
+				mimiType := file.Header["Content-Type"][0]
+				fd := FormFileData{
+					FormDataField: key,           // formData 里面的键
+					FileName:      file.Filename, // 文件名
+					MiniType:      mimiType,      // 文件的 mimiType
+					Size:          file.Size,     // 文件大小
+				}
+				formDataFile = append(formDataFile, fd)
+			}
+		}
+		echoData.FormDataFile = formDataFile
 	}
 
-	// for _, v := range files.File["files"] {
-	// 	echoData["formData." + v.Filename] = v.Filename;
-	// }
-
+	// body 数据
 	bytes, err := c.GetRawData()
 	if err == nil {
-		if len(bytes) < 500 {
-			echoData["body"] = string(bytes)
-		} else {
-			echoData["body"] = string(bytes[:500]) + "省略其他..."
+		if len(bytes) > 0 {
+			body := new(string)
+			if len(bytes) < 100 {
+				*body = string(bytes)
+			} else {
+				*body = string(bytes[:100]) + "..."
+			}
+			echoData.Body = body
 		}
 	}
 
