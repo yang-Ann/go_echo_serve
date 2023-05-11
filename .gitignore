@@ -1,2 +1,4 @@
 *.exe
 go.sum
+tmp
+!main.exe
