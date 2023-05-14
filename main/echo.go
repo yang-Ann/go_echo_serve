@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 回声数据
+// 响应数据结构
 type EchoData struct {
 	Url           string            `json:"url"`
 	Method        string            `json:"method"`
@@ -31,6 +31,7 @@ type FormFileData struct {
 // 处理 echo
 func handleEcho(c *gin.Context) {
 
+	// 响应数据
 	echoData := EchoData{
 		Url:    fmt.Sprintf("%s%s", c.Request.Host, c.Request.URL.String()),
 		Method: c.Request.Method,
@@ -101,10 +102,11 @@ func handleEcho(c *gin.Context) {
 	if err == nil {
 		if len(bytes) > 0 {
 			body := new(string)
-			if len(bytes) < 100 {
+			// 如果 body 数据太长则截取
+			if len(bytes) < BODY_DATA_LENGTH {
 				*body = string(bytes)
 			} else {
-				*body = string(bytes[:100]) + "..."
+				*body = string(bytes[:BODY_DATA_LENGTH]) + "..."
 			}
 			echoData.Body = body
 		}

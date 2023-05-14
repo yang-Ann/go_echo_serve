@@ -11,11 +11,18 @@ import (
 )
 
 var (
-	PORT      *int
+	// 服务端口
+	PORT *int
+
+	// 服务URL
 	SERVE_URL string
+
+	// 返回 body 数据的长度
+	BODY_DATA_LENGTH = 100
 )
 
 func init() {
+	// 可以通过命令行参数控制服务的端口
 	PORT = flag.Int("port", 8100, "端口号")
 	flag.Parse()
 
