@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/fatih/color"
@@ -59,4 +60,17 @@ func LogTip() {
 	color.New(color.FgGreen, color.Bold, color.Underline).Print(SERVE_URL)
 	fmt.Print(" 服务启动成功")
 	fmt.Printf("\n\n")
+}
+
+
+// 解码url
+func QueryUnescape(str string) string {
+	decodedStr, err := url.QueryUnescape(str)
+	if err != nil {
+		// fmt.Println("query 解码失败: ", err)
+		// 如果错误则返回原始的字符串
+		return str
+	} else {
+		return decodedStr
+	}
 }

@@ -30,7 +30,8 @@ func Logger() gin.HandlerFunc {
 		// 获取发送的 status
 		status := c.Writer.Status()
 
-		color.New(color.FgHiGreen).Print(url)
+		decodedStr := QueryUnescape(url.String())
+		color.New(color.FgHiGreen).Print(decodedStr)
 		fmt.Printf("\t")
 		color.New(color.FgYellow, color.Bold).Print(method)
 		fmt.Printf("\t%v", remoteAddr)

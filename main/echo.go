@@ -31,37 +31,44 @@ type FormFileData struct {
 // 处理 echo
 func handleEcho(c *gin.Context) {
 
+	request := c.Request
+
 	// 响应数据
 	echoData := EchoData{
-		Url:    fmt.Sprintf("%s%s", c.Request.Host, c.Request.URL.String()),
-		Method: c.Request.Method,
-		Body:   nil,
-		Explain: []string{
-			"以下是上面的参数说明: ",
-			"url: 表示请求地址",
-			"method: 表示请求方法",
-			"header: 表示请求头",
-			"body: 表示请求体数据",
-			"query: 表示地址 ? 之后的查询参数",
-			"formData.values: 表示 formData 里面的普通数据",
-			"formData.files: 表示 formData 里面上传的文件数据",
-		},
+		Url:     fmt.Sprintf("%s%s", request.Host, QueryUnescape(request.URL.String())),
+		Method:  request.Method,
+		Body:    nil,
+		Explain: []string{},
 	}
+
+	language := request.Header.Get(HeaderLanguageKey)
+	if len(language) == 0 {
+		language = DefaultLanguage
+	}
+
+	Explain := ExplainMap[language]
+	if len(Explain) == 0 {
+		Explain = ExplainMap[DefaultLanguage]
+	}
+
+	echoData.Explain = Explain
 
 	// 请求头
 	header := make(map[string]string)
-	for k, v := range c.Request.Header {
+	for k, v := range request.Header {
 		header[k] = v[0]
 	}
 	echoData.Header = header
 
-	// fmt.Printf("PostForm: %#v\n", c.Request.PostForm)
+	// fmt.Printf("PostForm: %#v\n", request.PostForm)
 
 	// query 数据
-	rawQuery := c.Request.URL.RawQuery
+	rawQuery := request.URL.RawQuery
 	if len(rawQuery) > 0 {
 		query := make(map[string]string)
-		for _, q := range strings.Split(rawQuery, "&") {
+
+		decodedStr := QueryUnescape(rawQuery)
+		for _, q := range strings.Split(decodedStr, "&") {
 			items := strings.Split(q, "=")
 			query[items[0]] = items[1]
 		}

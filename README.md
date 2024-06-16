@@ -29,3 +29,16 @@ curl localhost:8100 -G -d name=zhangsan -d age=18
 echo hello > data.txt
 curl -F file=@data.txt -F age=18 localhost:8100
 ```
+
+## 打包
+```sh
+cd main
+
+go build
+
+# 启动服务(默认监听8100)
+.\main.exe
+
+# 指定服务的端口
+.\main.exe -port=8200
+```
